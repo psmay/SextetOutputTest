@@ -1,9 +1,7 @@
-import us.hgk.rhythm.exp.sextetoutputtest.Manager;
+package us.hgk.rhythm.exp.sextetoutputtest;
 
-public class Main {
-
+public class Command {
 	public static void main(String[] args) {
 		Manager.start("cabinet");
 	}
-
 }
