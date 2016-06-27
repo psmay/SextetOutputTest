@@ -1,8 +1,11 @@
 package us.hgk.rhythm.exp.sextetoutputtest;
 
+import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Image;
 import java.awt.geom.Dimension2D;
 import java.awt.geom.Point2D;
+import java.awt.image.BufferedImage;
 
 public class Dim2D {
 	private final double width;
@@ -72,6 +75,18 @@ public class Dim2D {
 		return get(d.getWidth(), d.getHeight());
 	}
 
+	public static Dim2D get(Component component) {
+		return Dim2D.get(component.getWidth(), component.getHeight());
+	}
+
+	public static Dim2D get(BufferedImage img) {
+		return Dim2D.get(img.getWidth(), img.getHeight());
+	}
+
+	public static Dim2D get(Image img) {
+		return Dim2D.get(img.getWidth(null), img.getHeight(null));
+	}
+
 	public Dim2D changeWidth(double newWidth) {
 		return Dim2D.get(newWidth, height);
 	}
@@ -119,10 +134,23 @@ public class Dim2D {
 		long h = Math.max(1, Math.round(height));
 		return get(w, h);
 	}
-	
+
 	public Point2D.Double getCenteredRectangleOffset(Dim2D innerRectangleDimensions) {
 		double x = (this.width - innerRectangleDimensions.width) * 0.5;
 		double y = (this.height - innerRectangleDimensions.height) * 0.5;
 		return new Point2D.Double(x, y);
 	}
+
+	public boolean isWidthPositive() {
+		return width > 0;
+	}
+
+	public boolean isHeightPositive() {
+		return height > 0;
+	}
+
+	public boolean isPositive() {
+		return isWidthPositive() && isHeightPositive();
+	}
+
 }

@@ -15,7 +15,6 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
-import java.awt.image.RenderedImage;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -48,7 +47,7 @@ public class Display {
 		litOriginal = loadPngImage(litName);
 		unlitOriginal = loadPngImage(unlitName);
 
-		desiredAspect = dimensionOf(unlitOriginal).adjusted().getAspect();
+		desiredAspect = Dim2D.get(unlitOriginal).adjusted().getAspect();
 
 		Dim2D size = Dim2D.get(400, 400).changeAspectWithin(desiredAspect).adjusted();
 		panelPreferredSize = size.toAwtDimension();
@@ -65,7 +64,7 @@ public class Display {
 	private void onResize() {
 		Component component = panel;
 
-		Dim2D panelD = dimensionOf(component).adjusted();
+		Dim2D panelD = Dim2D.get(component).adjusted();
 		Dim2D innerD = panelD.changeAspectWithin(desiredAspect).adjusted();
 
 		Point2D.Double offset = panelD.getCenteredRectangleOffset(innerD);
@@ -187,11 +186,5 @@ public class Display {
 		}
 	}
 
-	private Dim2D dimensionOf(Component component) {
-		return Dim2D.get(component.getWidth(), component.getHeight());
-	}
 
-	private Dim2D dimensionOf(RenderedImage img) {
-		return Dim2D.get(img.getWidth(), img.getHeight());
-	}
 }

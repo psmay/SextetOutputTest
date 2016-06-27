@@ -2,10 +2,11 @@ package us.hgk.rhythm.exp.sextetoutputtest;
 
 import java.awt.AlphaComposite;
 import java.awt.Color;
-import java.awt.Composite;
+import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
+import java.awt.RenderingHints;
 import java.awt.Shape;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
@@ -13,33 +14,31 @@ import java.awt.image.BufferedImage;
 public class Renderer {
 	private BufferedImage onStateImage, offStateImage;
 	private BufferedImage[] pages = new BufferedImage[2];
-	private int originalWidth, originalHeight;
-	private int actualWidth, actualHeight;
 	private int renderedPageIndex;
 	AffineTransform scaleTransform;
+	private final Dim2D actualDim, originalDim;
+	private final int actualWidth, actualHeight, originalWidth, originalHeight;
 
 	public Renderer(Image originalOffStateImage, Image originalOnStateImage, int width, int height) {
-		this.actualWidth = Math.max(1, width);
-		this.actualHeight = Math.max(1, height);
+		actualDim = Dim2D.get(width, height).adjusted();
+		Dimension actualDimInt = actualDim.toAwtDimension();
+		actualWidth = actualDimInt.width;
+		actualHeight = actualDimInt.height;
 
-		originalWidth = originalOffStateImage.getWidth(null);
-		originalHeight = originalOffStateImage.getHeight(null);
+		originalDim = Dim2D.get(originalOffStateImage).adjusted();
+		Dimension originalDimInt = originalDim.toAwtDimension();
+		originalWidth = originalDimInt.width;
+		originalHeight = originalDimInt.height;
 
-		if (originalWidth < 1 || originalHeight < 1) {
-			throw new IllegalArgumentException("Original image dimensions must be positive");
-		}
-
-		double scaleX = ((double) actualWidth) / originalWidth;
-		double scaleY = ((double) actualHeight) / originalHeight;
-
-		scaleTransform = AffineTransform.getScaleInstance(scaleX, scaleY);
+		scaleTransform = getQuotientAsScale(actualDim, originalDim);
 
 		int type = BufferedImage.TYPE_INT_ARGB;
 
-		offStateImage = new BufferedImage(actualWidth, actualHeight, type);
-		onStateImage = new BufferedImage(actualWidth, actualHeight, type);
-		pages[0] = new BufferedImage(actualWidth, actualHeight, type);
-		pages[1] = new BufferedImage(actualWidth, actualHeight, type);
+		BufferedImage[] images = createBufferedImages(actualWidth, actualHeight, type, 4);
+		pages[0] = images[0];
+		pages[1] = images[1];
+		offStateImage = images[2];
+		onStateImage = images[3];
 
 		scaleImageInto(offStateImage, originalOffStateImage);
 		scaleImageInto(onStateImage, originalOnStateImage);
@@ -48,13 +47,75 @@ public class Renderer {
 		renderedPageIndex = 0;
 	}
 
-	public int getWidth() { return actualWidth; }
-	public int getHeight() { return actualHeight; }
-	
+	private static BufferedImage[] createBufferedImages(int width, int height, int imgType, final int count) {
+		BufferedImage[] images = new BufferedImage[count];
+
+		for (int i = 0; i < count; ++i) {
+			images[i] = new BufferedImage(width, height, imgType);
+		}
+
+		return images;
+	}
+
+	private AffineTransform getQuotientAsScale(Dim2D a, Dim2D b) {
+		double scaleX = a.getWidth() / b.getWidth();
+		double scaleY = a.getHeight() / b.getHeight();
+
+		AffineTransform st = AffineTransform.getScaleInstance(scaleX, scaleY);
+		return st;
+	}
+
+	public int getWidth() {
+		return actualWidth;
+	}
+
+	public int getHeight() {
+		return actualHeight;
+	}
+
+	public Dimension getDimension() {
+		return new Dimension(actualWidth, actualHeight);
+	}
+
+	// This bit is necessary to scale down an image with any sort of quality;
+	// bilinear/bicubic interpolation appears to be ineffectual without it.
+	// It is allowed to be a little slow since it only occurs on a resize rather
+	// than on every frame.
+	//
+	// The algorithm is to scale the image down in steps, with each step scaling
+	// each dimension down but by a factor no smaller than (about) 1/2.
 	private void scaleImageInto(BufferedImage dest, Image src) {
-		Graphics2D g = dest.createGraphics();
-		g.drawImage(src, 0, 0, actualWidth, actualHeight, null);
-		g.dispose();
+		int currentWidth = src.getWidth(null);
+		int currentHeight = src.getWidth(null);
+		Image currentImage = src;
+		BufferedImage nextImage = null;
+
+		while (true) {
+			int nextWidth = Math.max(2 * currentWidth / 3, actualWidth);
+			int nextHeight = Math.max(2 * currentHeight / 3, actualHeight);
+
+			if (nextWidth == actualWidth && nextHeight == actualHeight) {
+				nextImage = dest;
+			} else {
+				nextImage = new BufferedImage(nextWidth, nextHeight, dest.getType());
+			}
+
+			Graphics2D dg = nextImage.createGraphics();
+			dg.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+			dg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+			dg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+			dg.drawImage(currentImage, 0, 0, nextWidth, nextHeight, null);
+			dg.dispose();
+
+			if (nextImage == dest) {
+				break;
+			} else {
+				currentImage = nextImage;
+				currentWidth = nextWidth;
+				currentHeight = nextHeight;
+				nextImage = null;
+			}
+		}
 	}
 
 	private void drawImageInto(BufferedImage dest, Image src) {
@@ -75,52 +136,33 @@ public class Renderer {
 
 	synchronized void renderImage(Shape clipShape) {
 		int workPageIndex = getWorkPageIndex();
-
-		System.err.println("Rendering image on page " + workPageIndex);
-		
 		BufferedImage workPage = pages[workPageIndex];
 
-		Graphics2D g2 = workPage.createGraphics();
-		g2.transform(scaleTransform);
+		{
+			Graphics2D g2 = workPage.createGraphics();
 
-		
-		Composite comp = g2.getComposite();
-		Color c = g2.getColor();
-		
-		g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC));		
-		g2.setColor(BLANK_COLOR);
-		g2.fillRect(0, 0, originalWidth, originalHeight);
-		
-		g2.setColor(c);
-		g2.setComposite(comp);
-		
-		
-		
-		
-		// Clear image
-		//g2.setColor(BLANK_COLOR);
-		//g2.fillRect(0, 0, originalWidth, originalHeight);
+			// This transform is used to allow the clip shape, which has been
+			// defined in terms of the original image, to work with the resized
+			// image instead.
+			g2.transform(scaleTransform);
 
-		// Draw unlit, set clip area, draw lit, restore clip area
-		g2.drawImage(offStateImage, 0, 0, originalWidth, originalHeight, null);
-		//Shape normalClip = g2.getClip();
-		g2.setClip(clipShape);
+			g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC));
+			g2.setColor(BLANK_COLOR);
+			g2.fillRect(0, 0, originalWidth, originalHeight);
 
-		g2.drawImage(onStateImage, 0, 0, originalWidth, originalHeight, null);
-		
-		
-		//g2.setClip(normalClip);
-		
+			g2.drawImage(offStateImage, 0, 0, originalWidth, originalHeight, null);
+			g2.setClip(clipShape);
+			g2.drawImage(onStateImage, 0, 0, originalWidth, originalHeight, null);
+			
+			g2.dispose();
+		}
 
-		g2.dispose();
-
-		System.err.println("Done rendering; advancing rendered page index to " +workPageIndex);
+		// Advance to next page
 		renderedPageIndex = workPageIndex;
 	}
 
 	void drawRenderedImage(Graphics g) {
-		int i = renderedPageIndex;
-		System.err.println("Drawing rendered image from page " + i);
-		g.drawImage(pages[i], 0, 0, actualWidth, actualHeight, null);
+		BufferedImage renderedPage = pages[renderedPageIndex];
+		g.drawImage(renderedPage, 0, 0, actualWidth, actualHeight, null);
 	}
 }
