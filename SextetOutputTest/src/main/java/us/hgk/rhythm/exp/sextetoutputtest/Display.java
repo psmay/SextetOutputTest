@@ -3,6 +3,7 @@ package us.hgk.rhythm.exp.sextetoutputtest;
 import java.awt.AlphaComposite;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Composite;
 import java.awt.Dimension;
 import java.awt.Graphics;
@@ -12,8 +13,9 @@ import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
-import java.awt.geom.Dimension2D;
+import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
+import java.awt.image.RenderedImage;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,8 +33,8 @@ public class Display {
 	private final Dimension panelPreferredSize;
 	private AffineTransform translateTransform;
 
-	private Object lockMg = new Object();
-	private volatile Renderer mg;
+	private Object lockRenderer = new Object();
+	private volatile Renderer renderer;
 
 	private JFrame frame;
 	private DrawingPanel panel;
@@ -46,19 +48,14 @@ public class Display {
 		litOriginal = loadPngImage(litName);
 		unlitOriginal = loadPngImage(unlitName);
 
-		Dimension2D idealDimension = Geometry.getDimension2D(unlitOriginal.getWidth(), unlitOriginal.getHeight());
-		Geometry.nudgeToPositive(idealDimension);
-		desiredAspect = Geometry.getAspect(idealDimension);
+		desiredAspect = dimensionOf(unlitOriginal).adjusted().getAspect();
 
-		Dimension2D size = Geometry.getDimension2D(400, 400);
-		Geometry.setAspectWithin(size, desiredAspect);
-		Geometry.nudgeToPositive(size);
-		panelPreferredSize = Geometry.toPositiveAwtDimension(size);
-		
+		Dim2D size = Dim2D.get(400, 400).changeAspectWithin(desiredAspect).adjusted();
+		panelPreferredSize = size.toAwtDimension();
 
 		// This initializes mg to something very small;
 		// it will be changed to something useful when we call onResize()
-		changeScale(1, 1);
+		resizeRenderer(1, 1);
 
 		setUpWindow();
 		frame.setVisible(true);
@@ -66,35 +63,29 @@ public class Display {
 	}
 
 	private void onResize() {
-		Dimension2D panelDim = Geometry.getDimension2D(panel.getWidth(), panel.getHeight());
-		Dimension panelNDim = Geometry.toPositiveAwtDimension(panelDim);
-		
-		Dimension2D innerDim = (Dimension2D) panelDim.clone();
-		Geometry.setAspectWithin(innerDim, desiredAspect);
-		Dimension innerNDim = Geometry.toPositiveAwtDimension(innerDim);
-		
-		int offsetX = (panelNDim.width - innerNDim.width) / 2;
-		int offsetY = (panelNDim.height - innerNDim.height) / 2;
-		
-		changeScale(innerNDim.width, innerNDim.height);
-		translateTransform = AffineTransform.getTranslateInstance(offsetX, offsetY);
-		
-		System.err.println("Panel dim " + panelNDim.width + "x" + panelNDim.height);
-		System.err.println("Inner dim " + innerNDim.width + "x" + innerNDim.width);
-		System.err.println("Draw offset " + offsetX + "x" + offsetY);
+		Component component = panel;
+
+		Dim2D panelD = dimensionOf(component).adjusted();
+		Dim2D innerD = panelD.changeAspectWithin(desiredAspect).adjusted();
+
+		Point2D.Double offset = panelD.getCenteredRectangleOffset(innerD);
+
+		resizeRenderer((int) innerD.getWidth(), (int) innerD.getHeight());
+		translateTransform = AffineTransform.getTranslateInstance(offset.getX(), offset.getY());
+
 		panel.repaint();
 	}
-	
-	private void changeScale(int proposedWidth, int proposedHeight) {
-		Renderer newmg = new Renderer(unlitOriginal, litOriginal, proposedWidth, proposedHeight);
 
-		synchronized (lockMg) {
-			mg = newmg;
+	private void resizeRenderer(int proposedWidth, int proposedHeight) {
+		Renderer renderer = new Renderer(unlitOriginal, litOriginal, proposedWidth, proposedHeight);
+
+		synchronized (lockRenderer) {
+			this.renderer = renderer;
 		}
 	}
 
 	private void setUpWindow() {
-		frame = new JFrame("Testing");
+		frame = new JFrame("SextetOutputTest");
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.setLayout(new BorderLayout());
 		panel = new DrawingPanel();
@@ -105,7 +96,7 @@ public class Display {
 
 	void updateStates(Iterable<Integer> trueStates) {
 		Area area = buildClipArea(trueStates);
-		mg.renderImage(area);
+		renderer.renderImage(area);
 		panel.repaint();
 	}
 
@@ -115,9 +106,35 @@ public class Display {
 		public void componentResized(ComponentEvent e) {
 			onResize();
 		}
-		
+
 	}
-	
+
+	private void paintDrawingPanel(Graphics2D g2) {
+		Composite comp = g2.getComposite();
+		Color c = g2.getColor();
+
+		g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC));
+		g2.setColor(Color.lightGray);
+		g2.fillRect(0, 0, panel.getWidth(), panel.getHeight());
+
+		g2.setColor(c);
+		g2.setComposite(comp);
+
+		g2.setColor(Color.blue);
+		g2.drawString("Pre", 0, 0);
+		
+		g2.transform(translateTransform);
+		
+		g2.setColor(Color.blue);
+		g2.drawString("Post", 0, 0);
+		
+		synchronized (lockRenderer) {
+			renderer.drawRenderedImage(g2);
+		}
+
+		g2.dispose();
+	}
+
 	private class DrawingPanel extends JPanel {
 		private static final long serialVersionUID = -4814671716253111614L;
 
@@ -132,24 +149,8 @@ public class Display {
 		@Override
 		protected void paintComponent(Graphics g) {
 			super.paintComponent(g);
-			Graphics2D g2 = (Graphics2D) g.create();
-
-			Composite comp = g2.getComposite();
-			Color c = g2.getColor();
-
-			g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC));
-			g2.setColor(Color.lightGray);
-			g2.fillRect(0, 0, panel.getWidth(), panel.getHeight());
-
-			g2.setColor(c);
-			g2.setComposite(comp);
-
-			g2.transform(translateTransform);
-			mg.drawRenderedImage(g2);
-
-			g2.dispose();
+			paintDrawingPanel((Graphics2D) g);
 		}
-
 	}
 
 	private Area buildClipArea(Iterable<Integer> trueStates) {
@@ -184,5 +185,13 @@ public class Display {
 		} catch (IOException e) {
 			throw new IllegalArgumentException("Could not load TSV resource '" + mapName + "'");
 		}
+	}
+
+	private Dim2D dimensionOf(Component component) {
+		return Dim2D.get(component.getWidth(), component.getHeight());
+	}
+
+	private Dim2D dimensionOf(RenderedImage img) {
+		return Dim2D.get(img.getWidth(), img.getHeight());
 	}
 }
