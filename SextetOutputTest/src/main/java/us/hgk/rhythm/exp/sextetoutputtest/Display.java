@@ -38,10 +38,10 @@ public class Display {
 	private JFrame frame;
 	private DrawingPanel panel;
 
-	public Display(String baseResourceName) {
-		String unlitName = baseResourceName + "-unlit.png";
-		String litName = baseResourceName + "-lit.png";
-		String mapName = baseResourceName + "-map.tsv";
+	public Display(String lightSetName) {
+		String unlitName = "light-sets/" + lightSetName + "/unlit.png";
+		String litName = "light-sets/" + lightSetName + "/lit.png";
+		String mapName = "light-sets/" + lightSetName + "/map.tsv";
 
 		lightMap = loadLightMap(mapName);
 		litOriginal = loadPngImage(litName);

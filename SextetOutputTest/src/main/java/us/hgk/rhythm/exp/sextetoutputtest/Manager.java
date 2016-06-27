@@ -16,8 +16,8 @@ public class Manager {
 
 	private static final Charset UTF8 = Charset.forName("UTF-8");
 
-	public static void start(String baseResourceName) {
-		Display display = new Display(baseResourceName);
+	public static void start(String lightSetName) {
+		Display display = new Display(lightSetName);
 		
 		// Draw first image
 		display.updateStates(Collections.<Integer>emptyList());
