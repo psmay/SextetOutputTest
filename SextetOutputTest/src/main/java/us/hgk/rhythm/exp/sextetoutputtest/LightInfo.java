@@ -1,7 +1,6 @@
 package us.hgk.rhythm.exp.sextetoutputtest;
 
 import java.awt.Rectangle;
-import java.awt.Shape;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.HashMap;
@@ -11,12 +10,12 @@ public class LightInfo {
 
 	private final int bitIndex;
 	private final String description;
-	private Shape clipShape;
+	private Rectangle rect;
 
-	public LightInfo(int bitIndex, String description, Shape clipShape) {
+	public LightInfo(int bitIndex, String description, Rectangle rect) {
 		this.bitIndex = bitIndex;
 		this.description = description;
-		this.clipShape = clipShape;
+		this.rect = rect;
 	}
 
 	public int getBitIndex() {
@@ -27,8 +26,8 @@ public class LightInfo {
 		return description;
 	}
 
-	public Shape getClipShape() {
-		return clipShape;
+	public Rectangle getRectangle() {
+		return rect;
 	}
 	
 	private static int parseIntIo(String s) throws IOException {
