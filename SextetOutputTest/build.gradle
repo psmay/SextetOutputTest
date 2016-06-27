@@ -23,8 +23,25 @@ dependencies {
     testCompile 'junit:junit:4.12'
 }
 
+buildscript {
+    repositories {
+        flatDir dirs: 'lib'
+    }
+    dependencies {
+        classpath ':proguard:'
+    }
+}
+
 jar {
 	manifest {
 		attributes 'Main-Class': 'us.hgk.rhythm.exp.sextetoutputtest.Command'
 	}
 }
+
+task proguard(type: proguard.gradle.ProGuardTask) {
+	configuration 'settings.proguard'
+	injars 'build/libs/SextetOutputTest.jar'
+	outjars 'build/libs/SextetOutputTest.dist.jar'
+}
+
+tasks.proguard.dependsOn(jar)

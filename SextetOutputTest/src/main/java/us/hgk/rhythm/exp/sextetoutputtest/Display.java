@@ -114,18 +114,13 @@ public class Display {
 
 		g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC));
 		g2.setColor(Color.lightGray);
+		
 		g2.fillRect(0, 0, panel.getWidth(), panel.getHeight());
 
 		g2.setColor(c);
 		g2.setComposite(comp);
-
-		g2.setColor(Color.blue);
-		g2.drawString("Pre", 0, 0);
 		
 		g2.transform(translateTransform);
-		
-		g2.setColor(Color.blue);
-		g2.drawString("Post", 0, 0);
 		
 		synchronized (lockRenderer) {
 			renderer.drawRenderedImage(g2);

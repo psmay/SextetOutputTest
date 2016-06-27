@@ -1,0 +1,10 @@
+
+-libraryjars  <java.home>/lib/rt.jar
+
+#-dontoptimize
+-dontobfuscate
+
+-keep public class * {
+    public static void main(java.lang.String[]);
+}
+
