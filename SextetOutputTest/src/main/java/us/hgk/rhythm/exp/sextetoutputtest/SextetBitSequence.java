@@ -75,6 +75,10 @@ public class SextetBitSequence extends AbstractList<Boolean> {
 		return sextetData.length() * 6;
 	}
 	
+	public boolean isNoop() {
+		return sextetData.isEmpty();
+	}
+	
 	public boolean getBoolean(int index) {
 		int sextet = getSextetAtBit(index);
 		int mask = getSextetMask(index);
